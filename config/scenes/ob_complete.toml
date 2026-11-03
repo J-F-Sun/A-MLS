@@ -1,0 +1,11 @@
+name = "ob_complete"
+kind = "obstacle"
+description = "One reflecting sphere of radius R on the TX-RX axis; geometric complete shadow."
+reference = "fem"
+distances_R = [5.0, 8.0, 13.0, 21.0, 34.0]
+
+[geometry]
+target_radius_R = 1.0
+obstacle_radius_R = 1.0
+obstacle_offset_x_R = 0.5
+obstacle_offset_y_R = 0.0

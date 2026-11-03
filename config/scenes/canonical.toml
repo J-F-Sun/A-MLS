@@ -1,0 +1,8 @@
+name = "canonical"
+kind = "canonical"
+description = "Point transmitter and one perfectly absorbing sphere at the origin."
+reference = "analytical"
+distances_R = [5.0, 8.0, 13.0, 21.0, 34.0]
+
+[geometry]
+target_radius_R = 1.0

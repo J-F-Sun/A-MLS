@@ -1,0 +1,25 @@
+[physics]
+R = 1.0e-6
+D = 7.94e-11
+dt = 4.0e-6
+steps = 200000
+
+[simulation]
+experiments = 50
+repeats = 32
+molecules = 1000
+replicas = 250
+threshold_points = 32
+n_worst = 5
+max_iterations = 10000
+curve_points = 1001
+
+[uniform_scan]
+parameters = [2, 4, 6, 8, 12, 16, 24, 32]
+distances = [5, 13, 34]
+experiments = 50
+
+[adaptive_scan]
+parameters = [1, 5, 10, 25, 50, 100, 150, 200]
+distances = [5, 13, 34]
+experiments = 20

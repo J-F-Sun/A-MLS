@@ -1,0 +1,11 @@
+name = "rx2_half"
+kind = "two_receiver"
+description = "Intended RX at the origin and a second absorbing RX giving approximately 50% projected shadow."
+reference = "fem"
+distances_R = [5.0, 8.0, 13.0, 21.0, 34.0]
+
+[geometry]
+target_radius_R = 1.0
+competitor_radius_R = 1.0
+competitor_offset_x_R = 0.5
+competitor_offset_y_R = [0.959, 0.958, 0.961, 0.955, 0.957]
