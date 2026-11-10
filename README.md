@@ -1,141 +1,190 @@
-# Absorption-aware multilevel splitting (A-MLS)
+<div align="center">
 
-[中文说明](README.zh-CN.md)
+<h1>A-MLS</h1>
 
-Simulation code and numerical datasets accompanying *Absorption-Aware Multilevel Splitting for Efficient Rare-Event Simulation in Molecular Communication*, submitted to IEEE ICC 2027.
+<p><strong>Absorption-Aware Multilevel Splitting for Efficient Rare-Event Simulation in Molecular Communication</strong></p>
 
-A-MLS stands for **absorption-aware multilevel splitting**. Uniform distance-based partitioning and adaptive partitioning are its two level-selection strategies. The implementation compares direct Monte Carlo (MonC), uniform A-MLS, and adaptive A-MLS in the canonical channel and four extended geometries.
+<p><em>Manuscript submitted to IEEE ICC 2027 · Decision pending</em></p>
 
-## Repository layout
+<p>
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#figures-and-data">Figures and data</a> ·
+  <a href="#reproduce-the-experiments">Reproduce the experiments</a> ·
+  <a href="README.zh-CN.md">中文说明</a>
+</p>
 
-```text
-config/                 Physical parameters and five scene definitions
-src/                    Julia simulation kernels and experiment runner
-tools/                  Statistics and four paper figure scripts
-outputs/
-  canonical/            Main comparison, single-experiment CDF and parameter scans
-  ob_complete/          Ext1: completely shadowing reflector
-  ob_half/              Ext2: partially shadowing reflector
-  rx2_competitive/      Ext3: competing absorber without shadowing
-  rx2_half/             Ext4: partially shadowing competing absorber
-  analysis/             Paper metrics and extended-scenario table
-  figures/              The four numerical figure PDFs used in the manuscript
-run_simulations.sh      Simulation entry point
-reproduce_figures.sh    Statistics and figure entry point
-```
+</div>
 
-Each scene has English and Chinese dataset documentation, indexed in [outputs/README.md](outputs/README.md). Physical parameters and geometry inputs are under `config/`; recorded seeds, simulation results and FEM reference curves are under `outputs/`.
+## A five-minute introduction
 
-## Environment
+**Why absorption is hard to estimate.** In diffusive molecular communication, few molecules reach a distant receiver within the observation window. Direct Monte Carlo (MonC) therefore needs many trajectories to estimate the absorption probability curve.
 
-- Julia **1.11.8** is the recorded simulation version and is recommended for seed replay; the runner requires Julia 1.11 or newer. Simulations use Julia standard-library dependencies listed in `Project.toml`.
-- Bash on Linux or macOS (or WSL on Windows).
-- Python 3.11 or newer for statistics and figures. `requirements.txt` pins [NumPy 2.4.6](https://pypi.org/project/numpy/2.4.6/) and [Matplotlib 3.11.0](https://pypi.org/project/matplotlib/3.11.0/); statistics alone use the Python standard library.
-- A TeX installation providing `latex`, `pdflatex`, `dvipng`, `amsmath` and Computer Modern fonts (including the packages needed by Matplotlib's [LaTeX text renderer](https://matplotlib.org/stable/users/explain/text/usetex.html)). Label measurements use the Agg backend with LaTeX; vector PDF export uses PGF with `pdflatex`.
+**How A-MLS works.** Absorption-aware multilevel splitting replicates trajectories that advance toward the receiver. It reconstructs the time-dependent absorption probability from weighted first-hitting-time samples. This repository implements two ways to choose the levels.
 
-From the repository root:
+| Method | How it samples trajectories |
+| --- | --- |
+| MonC (`monc`) | Simulates independent molecule trajectories directly. |
+| Uniform A-MLS (`mls_lb`) | Splits trajectories at equally spaced distance thresholds. |
+| Adaptive A-MLS (`ams_mod`) | Updates the thresholds from the trajectories' progress toward the receiver. |
+
+[![Canonical absorption curves at five transmitter–receiver distances, comparing MonC, uniform A-MLS, adaptive A-MLS and the analytical reference](assets/canonical-cdf.png)](outputs/figures/01_canonical_CDF.pdf)
+
+*Canonical absorption probability curves from one batch of 32 estimates per method and distance. The shaded regions show 95% pointwise confidence intervals. Click the figure for the PDF.*
+
+The archive covers the canonical point-to-sphere channel and four extensions with a reflecting obstacle or a competing absorbing receiver. It includes the simulation results, seeds, FEM reference curves for the extended scenes, and scripts to rebuild the numerical figures and tables.
+
+## Quick start
 
 ```bash
-julia --project=. -e 'using Pkg; Pkg.instantiate()'
+git clone https://github.com/J-F-Sun/A-MLS.git
+cd A-MLS
+```
+
+### Rebuild figures from the supplied data
+
+Use Bash on Linux, macOS, or WSL, Python 3.11 or newer, and a TeX installation with `latex`, `pdflatex`, `dvipng`, `amsmath`, and Computer Modern fonts. The [Matplotlib TeX guide](https://matplotlib.org/stable/users/explain/text/usetex.html) lists the additional packages used by its text renderer.
+
+```bash
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
+PYTHON_BIN=python bash reproduce_figures.sh
 ```
 
-The supplied FEM reference curves are ready to use. Running the particle simulations does not require a PDE solver or Python. FEM meshes, solver projects and reference-generation scripts are not included; this repository supports particle simulations and analysis against the supplied references, rather than regenerating the FEM solutions.
+The four PDFs and their statistics are written to `outputs/reproduced/`. To rebuild just the statistics and tables with Python's standard library, run `python3 tools/analyze.py --output-root outputs/reproduced/statistics`.
 
-## Run simulations
+### Preview the simulation plan
+
+The runner requires Julia 1.11 or newer. Julia **1.11.8** is recommended for replaying the archived seeds. The particle simulator uses Julia standard libraries and the supplied reference curves.
 
 ```bash
-# List the complete paper experiment plan without generating results.
+julia --project=. -e 'using Pkg; Pkg.instantiate()'
 bash run_simulations.sh --dry-run
+```
 
-# Run all paper experiments, including the CDF and parameter scans.
+The dry run lists **138 configurations, 5,445 batches, and 174,240 estimator runs** without starting the simulations.
+
+## Figures and data
+
+| Numerical result | Data | PDF or table |
+| --- | --- | --- |
+| Sensitivity to level partitioning | [Uniform scan](outputs/canonical/scans/uniform/README.md) · [Adaptive scan](outputs/canonical/scans/adaptive/README.md) | [Parameter sensitivity](outputs/figures/parameter_search_S.pdf) |
+| Canonical absorption curves | [Single-experiment CDF data](outputs/canonical/cdf/README.md) | [Canonical CDF](outputs/figures/01_canonical_CDF.pdf) |
+| Canonical performance | [Canonical main comparison](outputs/canonical/README.md) | [Performance metrics](outputs/figures/02_canonical_metrics_2x2.pdf) |
+| Performance in extended scenes | [Ext1](outputs/ob_complete/README.md) · [Ext2](outputs/ob_half/README.md) · [Ext3](outputs/rx2_competitive/README.md) · [Ext4](outputs/rx2_half/README.md) | [Relative gain](outputs/figures/03_extended_gain_2x2.pdf) · [Performance table](outputs/analysis/extended_performance.tex) |
+
+The [dataset index](outputs/README.md) describes the archive and its fields. The canonical scene uses an analytical reference. The extended scenes use the supplied FEM reference curves as inputs for interpolation onto the simulation time grid. FEM meshes, solver projects, and reference generation are outside the scope of this archive.
+
+## Reproduce the experiments
+
+<details>
+<summary>Simulation commands, options, and resuming</summary>
+
+Run these commands from the repository root after setting up Julia.
+
+```bash
+# Full manuscript experiment suite
 THREADS=32 JOBS=2 bash run_simulations.sh
 
-# Run the 50-batch comparison only.
+# Main comparison only
 THREADS=32 JOBS=2 bash run_simulations.sh --study main
 
-# Run the canonical comparison at one distance.
+# Compare the three methods at 34 μm in the canonical scene
 THREADS=32 JOBS=2 bash run_simulations.sh \
   --study main --scenes canonical --distances 34
 
-# Run the two parameter scans separately.
+# Replay the CDF and the two parameter scans
+bash run_simulations.sh --study cdf
 bash run_simulations.sh --study uniform-scan
 bash run_simulations.sh --study adaptive-scan
-
-# Run the supplied single-experiment CDF seed configuration.
-bash run_simulations.sh --study cdf
 ```
 
-Use `JULIA_BIN=/path/to/julia` to select a Julia installation. `THREADS` controls threads per worker; `JOBS` controls the maximum simultaneous A-MLS workers. MonC uses one worker. Each batch averages 32 independently seeded estimates, independently of the number of threads. Defaults are 32 threads and two A-MLS workers.
+- `JULIA_BIN` selects the Julia executable. `THREADS` sets threads per worker and `JOBS` sets the maximum number of concurrent A-MLS workers. Defaults are 32 threads and two A-MLS workers. MonC runs with one worker.
+- `--scenes`, `--distances`, and `--methods monc,mls_lb,ams_mod` select subsets. Use `--parameters` to select scan settings and `--experiments` and `--repeats` to take the first recorded batches and estimates. `--steps` changes the time grid while keeping the 0.8 s horizon.
+- Outputs default to `outputs/rerun/`. Use `--output-root PATH` for another destination. Keep the supplied seeds and FEM references under `outputs/`, where the runner reads them.
+- Repeat the same command to resume a run. The runner checks each saved batch against its settings, code, and checksums. Use a new output root when changing the source, configuration, Julia version, thread count, or other run settings. Seed replay can differ across Julia versions or implementations.
 
-Fresh results go to `outputs/rerun/`. Use `--output-root PATH` for another directory. Repeat the identical command to resume completed batches. A batch records its settings, seeds and numerical output; changing source code, configuration, Julia version, thread count or other run settings requires a new output directory.
+</details>
 
-The runner reads seeds and extended-scene reference curves from the supplied `outputs/` tree, including when a different output root is selected. Keep these input files in place. This entry point replays the supplied paper configurations; it does not generate new seed sets or reference curves for arbitrary geometries.
+<details>
+<summary>Analyze or plot new simulation results</summary>
 
-Seeds alone do not guarantee bitwise-identical results across Julia versions or implementation changes.
+```bash
+# Summarize a complete or reduced main comparison
+python3 tools/analyze.py --data-root outputs/rerun
 
-Additional selectors are `--methods monc,mls_lb,ams_mod`, `--scenes`, `--distances`, and `--parameters` for the scans. `--experiments` and `--repeats` select the first recorded experiments and repeats; `--steps` changes the time grid while retaining the 0.8 s horizon. Their defaults reproduce the paper protocol. The complete plan contains **138 cases, 5,445 batches and 174,240 estimator runs**.
+# Rebuild all four figures from a complete rerun
+PYTHON_BIN=python bash reproduce_figures.sh outputs/rerun outputs/rerun/figures
+
+# Plot the complete scans or CDF separately
+python tools/plot_parameters.py --data-root outputs/rerun
+python tools/plot_cdf.py --data-root outputs/rerun
+```
+
+Use the Python and TeX setup from [Quick start](#quick-start) for plotting. The figure script takes the input data root and output directory as optional positional arguments. The full figure set uses the five scenes at five distances for all three methods, 50 batches of 32 estimates for each main comparison, both complete parameter scans, and all five distances for the canonical CDF experiment.
+
+`analyze.py` reads only the main comparison. The scan and CDF scripts use their own inputs and default to writing under `outputs/reproduced/`. Pass `--output PATH.pdf` to change their destinations. The plots use the manuscript's axes and annotations, so new timings or estimates may require adjusting the axes.
+
+</details>
 
 ## Recorded data and rerun format
 
-The supplied archive uses `experiments.csv`, `seeds.csv`, `inner_estimates.csv.gz`, and compressed display curves. Parameter scans retain batch summaries and seeds. These formats are described in the [dataset index](outputs/README.md) and scene READMEs.
+<details>
+<summary>Archive files and the per-batch output layout</summary>
 
-New simulations save each batch under `<output-root>/<scene>/<study>/runs/<method>/dXXR/p<parameter>/eXX/`, where `<study>` is `main`, `cdf`, `scans/uniform` or `scans/adaptive`. Each completed batch contains:
+The [supplied archive](outputs/README.md) contains `experiments.csv`, `seeds.csv`, `inner_estimates.csv.gz`, and compressed display curves. The scans retain batch summaries and seeds.
 
-- `experiment.csv`: one batch summary with full-grid error and measured wall time.
-- `curves.csv`: display-grid reference, mean, standard deviation, confidence bounds and individual estimate curves.
-- `repeats.csv`: per-estimate seeds, errors, work counters and elapsed times.
-- `taus.csv`: target-hit times, with one row per recorded hit in each estimate.
-- `run.toml`: source/settings fingerprint and output-file checksums used when resuming.
+New runs save each batch under `<output-root>/<scene>/<study>/runs/<method>/dXXR/p<parameter>/eXX/`. The study directory is `main`, `cdf`, `scans/uniform`, or `scans/adaptive`.
 
-After the selected jobs finish, the runner assembles `<scene>/<study>/experiments.csv`. It does not recreate the archive's combined `inner_estimates.csv.gz` or compressed main-curve files. The analysis and figure scripts accept the rerun format; the CDF plot reads its batch `curves.csv` directly. Temporary `.batch-*` directories left by a killed process are excluded from aggregation.
+| File | Contents |
+| --- | --- |
+| `experiment.csv` | Batch summary, full-grid error, and measured wall time |
+| `curves.csv` | Reference, mean, standard deviation, confidence bounds, and individual estimates on the display grid |
+| `repeats.csv` | Seeds, errors, work counters, and elapsed times for individual estimates |
+| `taus.csv` | Recorded target-hit times, one row per hit in each estimate |
+| `run.toml` | Source and settings fingerprint plus output checksums for resuming |
 
-## Rebuild statistics and figures
+The runner gathers completed batches in `<scene>/<study>/experiments.csv`. The analysis and plotting scripts read this layout. The CDF plot reads each batch's `curves.csv` directly.
 
-```bash
-# Recompute tables directly from the supplied paper data.
-python tools/analyze.py
+</details>
 
-# Rebuild all four figures and their statistics from the supplied data.
-PYTHON_BIN=python bash reproduce_figures.sh
+## Experimental protocol
 
-# Rebuild them after a complete simulation rerun.
-PYTHON_BIN=python bash reproduce_figures.sh outputs/rerun outputs/rerun/figures
-```
+<details>
+<summary>Parameters, statistics, and implementation</summary>
 
-The figure script writes to `outputs/reproduced/` by default. Its first optional argument is the input data root; the second is the output directory. Rebuilding all four figures requires all five main scenes at five distances and three methods, 50 main batches of 32 estimates, both complete parameter scans, and the canonical CDF experiment at all five distances. Reduced main simulations can be summarized with:
+| Setting | Value |
+| --- | --- |
+| Receiver radius and diffusivity | 1 μm and 79.4 μm²/s |
+| Time grid | 200,000 steps of 4 μs over 0.8 s |
+| Transmitter–receiver distance | 5, 8, 13, 21, and 34 μm |
+| Particles per estimate | 1,000 molecules for MonC and 250 initial replicas for A-MLS |
+| Main comparisons | 50 batches × 32 independently seeded estimates per method, scene, and distance |
+| A-MLS levels in the main comparisons | 32 threshold points (`L=31`) for uniform A-MLS and `k=5` for adaptive A-MLS |
+| Canonical parameter scans | At 5, 13, and 34 μm. Uniform uses 50 × 32 estimates per setting. Adaptive uses 20 × 32. |
+| Canonical CDF | One batch of 32 estimates per method and distance, with separate archived seeds |
 
-```bash
-python tools/analyze.py --data-root outputs/rerun
-```
+Each batch's relative L2 error compares its mean curve to the reference on the full **200,001-point** grid. Display curves use 1,001 points. The main score is `S = mean(wall_seconds) × mean(relative_l2)`. The gain in percent is `100 × (S_MonC / S_A-MLS − 1)`.
 
-`analyze.py` summarizes `main/experiments.csv` only; it does not summarize scan-only or CDF-only reruns. For example, plot a complete scan rerun with `python tools/plot_parameters.py --data-root outputs/rerun`, or a complete CDF rerun with `python tools/plot_cdf.py --data-root outputs/rerun`. These direct plotting commands use their default destinations under `outputs/reproduced/`; pass `--output PATH.pdf` to change the destination.
+The parameter scans and canonical error, wall time, and S plots use 95% percentile bootstrap intervals. The gain panels show point estimates. For the CDF, MonC uses pooled-molecule Wilson intervals and A-MLS uses Student-t intervals across 32 estimates. CSV times are in seconds. Probabilities and relative errors are dimensionless.
 
-| Paper item | Data | Figure |
-|---|---|---|
-| Parameter sensitivity | `outputs/canonical/scans/` | `parameter_search_S.pdf` |
-| Single-experiment CDF | `outputs/canonical/cdf/` | `01_canonical_CDF.pdf` |
-| Canonical performance | `outputs/canonical/main/` | `02_canonical_metrics_2x2.pdf` |
-| Extended performance table and gains | Four extended scene `main/` directories | `03_extended_gain_2x2.pdf` |
+The archived times measure threaded estimator batches after warm-up on an Intel Xeon Gold 6430 with Julia 1.11.8, 32 threads per worker, one MonC worker, and two A-MLS workers. Use the supplied timings to reconstruct the manuscript's performance figures. New timings depend on hardware, Julia version, concurrency, and scheduling.
 
-The plotting scripts retain the manuscript's axis ranges and annotations. New wall times or estimates can fall outside those ranges and trigger a plotting check; they may require axis or annotation changes before plotting a rerun.
+All methods share Gaussian diffusion steps and check absorption at step endpoints. Reflecting spheres use straight-segment intersection and specular reflection of the remaining displacement. These rules approximate the continuous diffusion model with a finite time step. The adaptive implementation removes ties at the selected score, updates weights from the actual surviving fraction, and replays parent RNG streams to recover checkpoints. Target hits retain their original times.
 
-## Experimental definitions
+The Julia kernels use SI units. Scene distances, radii, and transverse offsets are multiples of R. The historical keys `obstacle_offset_x_R` and `competitor_offset_x_R` encode a fraction of the transmitter–receiver distance. A value of `0.5` places the additional sphere at x=d/2.
 
-All scenes use `R=1 μm`, `D=79.4 μm²/s`, `Δt=4 μs`, 200,000 steps and `T=0.8 s`. Distances are 5, 8, 13, 21 and 34 μm. MonC uses 1,000 molecules per estimate; A-MLS uses 250 initial replicas. Main comparisons use **50 batches × 32 estimates** per method and distance, with 32 threshold points (`L=31`) for uniform A-MLS and `k=5` for adaptive A-MLS.
+</details>
 
-The uniform parameter scan uses **50 × 32** estimates per setting; the adaptive parameter scan uses **20 × 32**. Both scan the canonical channel at 5, 13 and 34 μm. The CDF figure uses one **32-estimate experiment** at each distance and method, with its own supplied seeds and pointwise confidence limits. Its curves must be read from `canonical/cdf/`.
+## Repository layout
 
-For each batch, relative L2 error is computed from its mean estimated curve and the reference on the full **200,001-point** grid. Extended-scene references are linearly interpolated from the supplied FEM samples onto that grid. The paper uses the arithmetic mean of the 50 main batch errors, `S = mean(wall_seconds) × mean(relative_l2)`, and `G = 100 × (S_MonC / S_A-MLS − 1)`. Parameter-scan bands and canonical error, wall-time and S error bars use 95% percentile bootstrap intervals; the gain panels display point estimates. CDF intervals use pooled-molecule Wilson intervals for MonC and Student-t intervals across 32 estimates for A-MLS.
+| Path | Contents |
+| --- | --- |
+| [`src/`](src/) | Julia simulation kernels and experiment runner |
+| [`config/`](config/) | Physical parameters and scene definitions |
+| [`tools/`](tools/) | Python statistics and plotting scripts |
+| [`outputs/`](outputs/README.md) | Archived data, reference curves, statistics, and figure PDFs |
+| [`run_simulations.sh`](run_simulations.sh) | Simulation entry point |
+| [`reproduce_figures.sh`](reproduce_figures.sh) | Figure and table reconstruction |
 
-Stored display curves have 1,001 time points. The supplied full-grid error statistics are used directly in the tables; the plotting grid is for displaying curves. Saved hexadecimal seeds permit recomputation on the full grid. All CSV time values are seconds; probabilities and errors are dimensionless.
-
-Recorded wall times were measured with Julia 1.11.8 on an Intel Xeon Gold 6430 using 32 threads per worker, with one MonC worker and two A-MLS workers. They measure the threaded estimator batch after warm-up. New timings depend on hardware, Julia version, concurrency and scheduling; use the supplied results to reconstruct the manuscript's timing-dependent tables and figures.
-
-## Numerical implementation
-
-All methods share Gaussian diffusion steps. Absorption is checked at step endpoints; reflecting spheres use straight-segment intersection and specular reflection of the remaining displacement. This is a finite-step approximation to the continuous diffusion model. The adaptive implementation removes all ties at the selected score, uses the actual surviving fraction, and replays parent RNG streams to recover branching checkpoints before generating independent continuations. Terminal target absorptions retain their original hit times.
-
-Physical quantities in the Julia configuration and kernels use SI units (metres, seconds and m²/s). Scene distances, sphere radii and transverse offsets are specified in multiples of R. The legacy keys `obstacle_offset_x_R` and `competitor_offset_x_R` specify a fraction of the TX–RX distance d: `0.5` places the additional sphere at x=d/2. README distances and figure labels are expressed in micrometres.
+When referencing the code or data, include the [repository URL](https://github.com/J-F-Sun/A-MLS) and the commit you used.

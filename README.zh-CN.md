@@ -1,141 +1,190 @@
-# 吸收感知多级分裂（A-MLS）
+<div align="center">
 
-[English](README.md)
+<h1>A-MLS</h1>
 
-本仓库为论文 *Absorption-Aware Multilevel Splitting for Efficient Rare-Event Simulation in Molecular Communication* 提供仿真程序与数值数据。该论文已投稿至 IEEE ICC 2027。
+<p><strong>吸收感知多级分裂，用于分子通信中的高效稀有事件仿真</strong></p>
 
-A-MLS 的全称为 **Absorption-Aware Multilevel Splitting（吸收感知多级分裂）**，均匀距离阈值与自适应阈值是它的两种分层策略。程序在标准场景及四个扩展场景中比较直接蒙特卡洛（MonC）、均匀 A-MLS 和自适应 A-MLS。
+<p><em>论文已投稿至 IEEE ICC 2027 · 审稿结果待定</em></p>
 
-## 目录结构
+<p>
+  <a href="#快速上手">快速上手</a> ·
+  <a href="#图表与数据">图表与数据</a> ·
+  <a href="#复现实验">复现实验</a> ·
+  <a href="README.md">English</a>
+</p>
 
-```text
-config/                 物理参数与五个场景的定义
-src/                    Julia 仿真内核与实验运行程序
-tools/                  统计分析与四幅论文图的绘图程序
-outputs/
-  canonical/            标准场景：主对照、单次实验 CDF 与参数扫描
-  ob_complete/          Ext1：完全遮挡目标接收球的反射球
-  ob_half/              Ext2：部分遮挡目标接收球的反射球
-  rx2_competitive/      Ext3：不遮挡目标接收球的竞争吸收球
-  rx2_half/             Ext4：部分遮挡目标接收球的竞争吸收球
-  analysis/             论文指标汇总与扩展场景表格
-  figures/              论文采用的四幅数值结果 PDF 图
-run_simulations.sh      仿真运行入口
-reproduce_figures.sh    统计与图表重建入口
-```
+</div>
 
-每个场景提供中英文数据说明，入口见 [outputs/README.zh-CN.md](outputs/README.zh-CN.md)。物理参数与几何输入位于 `config/`；已记录的随机种子、仿真结果和 FEM 参考曲线位于 `outputs/`。
+## 五分钟了解 A-MLS
 
-## 环境安装
+**为什么吸收概率难估计。** 在扩散分子通信中，距离较远时，只有少量分子能在观测时域内抵达接收器。要估计整条吸收概率曲线，直接蒙特卡洛（MonC）往往需要模拟大量轨迹。
 
-- **Julia 1.11.8** 为所附数据记录的仿真版本，建议用它重放随机种子；运行程序要求 Julia 1.11 及以上版本。仿真仅使用 `Project.toml` 列出的 Julia 标准库依赖。
-- Linux、macOS 的 Bash，或 Windows 的 WSL。
-- 统计和绘图使用 Python 3.11 及以上版本。`requirements.txt` 固定了 [NumPy 2.4.6](https://pypi.org/project/numpy/2.4.6/) 和 [Matplotlib 3.11.0](https://pypi.org/project/matplotlib/3.11.0/)；单独运行统计程序只需 Python 标准库。
-- 需要提供 `latex`、`pdflatex`、`dvipng`、`amsmath` 和 Computer Modern 字体的 TeX 安装，并包含 Matplotlib [LaTeX 文字渲染](https://matplotlib.org/stable/users/explain/text/usetex.html)所需的宏包。文字尺寸测量采用 Agg 后端与 LaTeX，矢量 PDF 导出采用 PGF 后端与 `pdflatex`。
+**A-MLS 如何估计。** 吸收感知多级分裂（Absorption-Aware Multilevel Splitting）复制已向接收器推进的轨迹，再利用带权重的首次命中时刻重建随时间变化的吸收概率。程序实现了两种分层策略。
 
-在仓库根目录执行：
+| 方法 | 如何采样轨迹 |
+| --- | --- |
+| MonC（`monc`） | 直接模拟相互独立的分子轨迹。 |
+| 均匀 A-MLS（`mls_lb`） | 采用等间距的距离阈值进行轨迹分裂。 |
+| 自适应 A-MLS（`ams_mod`） | 根据轨迹朝向接收器的推进程度更新阈值。 |
+
+[![标准场景五个发射接收距离下的吸收概率曲线，对比 MonC、两种 A-MLS 和解析参考](assets/canonical-cdf.png)](outputs/figures/01_canonical_CDF.pdf)
+
+*标准场景的吸收概率曲线。每种方法在每个距离展示一批 32 次估计，阴影表示 95% 点态置信区间。点击图像可打开 PDF。*
+
+仓库覆盖标准点到球场景，以及带反射障碍球或竞争吸收球的四个扩展场景。随附仿真结果、随机种子、扩展场景的 FEM 参考曲线，以及重建数值图表所需的脚本。
+
+## 快速上手
 
 ```bash
-julia --project=. -e 'using Pkg; Pkg.instantiate()'
+git clone https://github.com/J-F-Sun/A-MLS.git
+cd A-MLS
+```
+
+### 用随附数据重建图表
+
+需要 Linux、macOS 或 WSL 下的 Bash、Python 3.11 或更新版本，以及提供 `latex`、`pdflatex`、`dvipng`、`amsmath` 和 Computer Modern 字体的 TeX 环境。TeX 文字渲染所需的其他宏包见 [Matplotlib 指南](https://matplotlib.org/stable/users/explain/text/usetex.html)。
+
+```bash
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
+PYTHON_BIN=python bash reproduce_figures.sh
 ```
 
-FEM 参考曲线已随数据提供，可直接使用。运行粒子仿真无需安装 PDE 求解器或 Python。仓库不包含 FEM 网格、求解器工程或参考曲线生成脚本；所覆盖的流程为粒子仿真及其相对所附参考曲线的分析，未包含 FEM 解的重新生成。
+四幅 PDF 及其统计结果写入 `outputs/reproduced/`。如果只想用 Python 标准库重建统计与表格，运行 `python3 tools/analyze.py --output-root outputs/reproduced/statistics`。
 
-## 运行仿真
+### 预览仿真计划
+
+运行程序要求 Julia 1.11 或更新版本。重放归档种子建议使用 **Julia 1.11.8**。粒子仿真使用 Julia 标准库与随附的参考曲线。
 
 ```bash
-# 列出完整论文实验计划，不生成实验结果。
+julia --project=. -e 'using Pkg; Pkg.instantiate()'
 bash run_simulations.sh --dry-run
+```
 
-# 运行全部论文实验，包括 CDF 和参数扫描。
+预览会列出 **138 个配置、5,445 批实验和 174,240 次估计运行**，不会启动仿真。
+
+## 图表与数据
+
+| 数值结果 | 数据说明 | PDF 或表格 |
+| --- | --- | --- |
+| 分层参数敏感性 | [均匀阈值扫描](outputs/canonical/scans/uniform/README.zh-CN.md) · [自适应参数扫描](outputs/canonical/scans/adaptive/README.zh-CN.md) | [参数敏感性](outputs/figures/parameter_search_S.pdf) |
+| 标准场景吸收概率曲线 | [单次实验 CDF 数据](outputs/canonical/cdf/README.zh-CN.md) | [标准场景 CDF](outputs/figures/01_canonical_CDF.pdf) |
+| 标准场景性能 | [标准场景主对照](outputs/canonical/README.zh-CN.md) | [性能指标](outputs/figures/02_canonical_metrics_2x2.pdf) |
+| 扩展场景性能 | [Ext1](outputs/ob_complete/README.zh-CN.md) · [Ext2](outputs/ob_half/README.zh-CN.md) · [Ext3](outputs/rx2_competitive/README.zh-CN.md) · [Ext4](outputs/rx2_half/README.zh-CN.md) | [相对增益](outputs/figures/03_extended_gain_2x2.pdf) · [性能表](outputs/analysis/extended_performance.tex) |
+
+[数据索引](outputs/README.zh-CN.md)列出了归档内容和字段。标准场景采用解析参考值，扩展场景将随附的 FEM 参考曲线插值到仿真时间网格。FEM 网格、求解器工程及参考曲线的生成流程不在本归档范围内。
+
+## 复现实验
+
+<details>
+<summary>仿真命令、选项与断点续跑</summary>
+
+配置好 Julia 后，在仓库根目录执行以下命令。
+
+```bash
+# 运行论文的完整实验
 THREADS=32 JOBS=2 bash run_simulations.sh
 
-# 只运行 50 批主对照实验。
+# 只运行主对照
 THREADS=32 JOBS=2 bash run_simulations.sh --study main
 
-# 运行标准场景在一个距离下的三方法对照。
+# 对比标准场景在 34 μm 下的三种方法
 THREADS=32 JOBS=2 bash run_simulations.sh \
   --study main --scenes canonical --distances 34
 
-# 分别运行两组参数扫描。
+# 重放 CDF 实验与两组参数扫描
+bash run_simulations.sh --study cdf
 bash run_simulations.sh --study uniform-scan
 bash run_simulations.sh --study adaptive-scan
-
-# 运行所附 CDF 单次实验对应的种子配置。
-bash run_simulations.sh --study cdf
 ```
 
-可用 `JULIA_BIN=/path/to/julia` 指定 Julia。`THREADS` 表示每个工作进程的线程数；`JOBS` 表示 A-MLS 工作进程的最大并发数，MonC 使用一个工作进程。每批平均 32 次独立种子对应的估计，独立估计次数与线程数无关。默认每进程 32 线程、两个 A-MLS 并发进程。
+- 用 `JULIA_BIN` 选择 Julia 可执行文件。`THREADS` 控制每个工作进程的线程数，`JOBS` 控制 A-MLS 工作进程的最大并发数。默认每进程 32 线程、两个 A-MLS 并发进程。MonC 使用一个工作进程。
+- 用 `--scenes`、`--distances` 和 `--methods monc,mls_lb,ams_mod` 选择任务子集，用 `--parameters` 选择扫描参数。用 `--experiments` 和 `--repeats` 选取已记录的前若干批和批内估计。`--steps` 修改时间网格，观测时域仍为 0.8 s。
+- 结果默认写入 `outputs/rerun/`，可用 `--output-root PATH` 改变位置。运行程序从 `outputs/` 读取所附种子和 FEM 参考曲线，请将这些输入文件保留在原处。
+- 重复执行相同命令可续跑。程序按运行设置、源码和文件校验和检查已保存的批次。修改代码、配置、Julia 版本、线程数或其他运行设置后，请使用新的输出目录。Julia 版本或实现发生变化时，相同种子也可能产生不同结果。
 
-新结果默认写入 `outputs/rerun/`，可通过 `--output-root PATH` 指定其他位置。重复执行完全相同的命令可继续运行并跳过已完成的批次。每批记录设置、随机种子和数值输出；修改代码、配置、Julia 版本、线程数或其他运行设置后，应使用新的输出目录。
+</details>
 
-即使指定其他输出根目录，运行程序仍从仓库自带的 `outputs/` 读取随机种子和扩展场景参考曲线，请保留这些输入文件。该入口用于重放所附论文配置，不生成新种子集或任意几何场景的参考曲线。
+<details>
+<summary>汇总或绘制新仿真的结果</summary>
 
-仅有相同种子不保证跨 Julia 版本或实现修改后的结果逐位相同。
+```bash
+# 汇总完整或部分主对照
+python3 tools/analyze.py --data-root outputs/rerun
 
-还可通过 `--methods monc,mls_lb,ams_mod`、`--scenes`、`--distances` 选择任务，用 `--parameters` 选择扫描参数。`--experiments` 和 `--repeats` 选取已记录的前若干批及批内估计；`--steps` 在保持 0.8 s 时域的条件下修改时间网格。默认值对应论文实验协议。完整计划包含 **138 个配置、5,445 批实验、174,240 次估计运行**。
+# 从完整重跑结果重建四幅图
+PYTHON_BIN=python bash reproduce_figures.sh outputs/rerun outputs/rerun/figures
+
+# 单独绘制完整扫描或完整 CDF
+python tools/plot_parameters.py --data-root outputs/rerun
+python tools/plot_cdf.py --data-root outputs/rerun
+```
+
+绘图使用[快速上手](#快速上手)中的 Python 和 TeX 环境。绘图脚本的两个可选位置参数依次为输入数据根目录和输出目录。重建全部图表需要五个场景在五个距离、三种方法下各 50 批、每批 32 次估计的主对照结果，两组完整参数扫描，以及标准场景全部五个距离的 CDF 实验。
+
+`analyze.py` 只读取主对照。参数扫描与 CDF 的独立绘图脚本读取各自的输入，默认写入 `outputs/reproduced/`，可用 `--output PATH.pdf` 更改输出位置。图表采用稿件的坐标轴和标注设置，重跑得到的新耗时或估计值可能需要调整坐标轴。
+
+</details>
 
 ## 归档数据与重跑格式
 
-所附归档使用 `experiments.csv`、`seeds.csv`、`inner_estimates.csv.gz` 和压缩后的展示曲线。参数扫描保留逐批汇总与随机种子。文件格式见[数据索引](outputs/README.zh-CN.md)及各场景 README。
+<details>
+<summary>归档文件及批次输出目录</summary>
 
-新仿真的每批结果保存在 `<output-root>/<scene>/<study>/runs/<method>/dXXR/p<parameter>/eXX/` 下，其中 `<study>` 为 `main`、`cdf`、`scans/uniform` 或 `scans/adaptive`。每个完整批次包含：
+[所附归档](outputs/README.zh-CN.md)包含 `experiments.csv`、`seeds.csv`、`inner_estimates.csv.gz` 和压缩的展示曲线。参数扫描归档保留逐批汇总和随机种子。
 
-- `experiment.csv`：一条批次汇总，含完整网格误差和墙钟耗时。
-- `curves.csv`：展示网格上的参考值、均值、标准差、置信区间及各次估计曲线。
-- `repeats.csv`：逐次估计的种子、误差、计算量及耗时。
-- `taus.csv`：目标吸收时刻，每次估计的每个已记录命中对应一行。
-- `run.toml`：续跑校验所用的源码与设置指纹、输出文件校验和。
+新仿真的每批结果位于 `<output-root>/<scene>/<study>/runs/<method>/dXXR/p<parameter>/eXX/`。实验目录 `<study>` 为 `main`、`cdf`、`scans/uniform` 或 `scans/adaptive`。
 
-所选任务完成后，程序汇总生成 `<scene>/<study>/experiments.csv`，不会重新打包归档中的合并 `inner_estimates.csv.gz` 或主对照压缩曲线。统计与绘图程序支持重跑格式，CDF 图直接读取对应批次的 `curves.csv`。进程被强制终止后可能遗留的 `.batch-*` 临时目录不会进入汇总。
+| 文件 | 内容 |
+| --- | --- |
+| `experiment.csv` | 批次汇总、完整网格误差和墙钟耗时 |
+| `curves.csv` | 展示网格上的参考值、均值、标准差、置信区间及各次估计曲线 |
+| `repeats.csv` | 逐次估计的种子、误差、计算量和耗时 |
+| `taus.csv` | 记录的目标命中时刻，每次估计的每个命中对应一行 |
+| `run.toml` | 用于续跑的源码与设置指纹、输出文件校验和 |
 
-## 重建统计结果和图表
+程序将完成的批次汇总为 `<scene>/<study>/experiments.csv`。统计和绘图脚本支持重跑格式，CDF 图直接读取对应批次的 `curves.csv`。
 
-```bash
-# 从随仓库提供的论文数据重新计算指标和表格。
-python tools/analyze.py
-
-# 从随仓库提供的数据重建四幅图及其统计结果。
-PYTHON_BIN=python bash reproduce_figures.sh
-
-# 完整重跑仿真后，从新结果重建图表。
-PYTHON_BIN=python bash reproduce_figures.sh outputs/rerun outputs/rerun/figures
-```
-
-图表默认写入 `outputs/reproduced/`。绘图脚本的第一个可选参数为输入数据根目录，第二个为输出目录。重建全部四幅图需要五个主场景在五个距离、三种方法下各 50 批、每批 32 次估计的结果，两组完整参数扫描，以及标准场景在全部五个距离下的 CDF 实验。部分主对照结果可单独汇总：
-
-```bash
-python tools/analyze.py --data-root outputs/rerun
-```
-
-`analyze.py` 只汇总 `main/experiments.csv`，不汇总仅含参数扫描或 CDF 的重跑结果。例如，完整扫描重跑后可执行 `python tools/plot_parameters.py --data-root outputs/rerun`；完整 CDF 重跑后可执行 `python tools/plot_cdf.py --data-root outputs/rerun`。这些独立绘图命令默认写入 `outputs/reproduced/`，可用 `--output PATH.pdf` 更改位置。
-
-| 论文内容 | 数据位置 | 图文件 |
-|---|---|---|
-| 参数敏感性 | `outputs/canonical/scans/` | `parameter_search_S.pdf` |
-| 单次实验 CDF | `outputs/canonical/cdf/` | `01_canonical_CDF.pdf` |
-| 标准场景性能 | `outputs/canonical/main/` | `02_canonical_metrics_2x2.pdf` |
-| 扩展场景性能表与增益 | 四个扩展场景的 `main/` | `03_extended_gain_2x2.pdf` |
-
-绘图脚本保留了论文使用的坐标轴范围和标注位置。重跑所得耗时或估计值可能超出这些范围并触发绘图检查，此时需要调整坐标轴或标注后再绘图。
+</details>
 
 ## 实验与统计定义
 
-所有场景使用 `R=1 μm`、`D=79.4 μm²/s`、`Δt=4 μs`、200,000 个时间步，观测时域为 `T=0.8 s`。距离为 5、8、13、21、34 μm。MonC 每次估计使用 1,000 个分子，A-MLS 使用 250 个初始副本。主对照每种方法、每个距离运行 **50 批 × 每批 32 次估计**；均匀 A-MLS 使用 32 个阈值点（`L=31`），自适应 A-MLS 使用 `k=5`。
+<details>
+<summary>参数、统计口径与数值实现</summary>
 
-均匀阈值参数扫描每个配置使用 **50 × 32** 次估计，自适应参数扫描使用 **20 × 32** 次估计，均覆盖标准场景的 5、13、34 μm。CDF 图在每个距离、每种方法下展示一个 **32 次估计构成的单次实验**，对应种子及点态置信区间均已提供，绘图读取 `canonical/cdf/`。
+| 设置 | 取值 |
+| --- | --- |
+| 接收球半径与扩散系数 | 1 μm、79.4 μm²/s |
+| 时间网格 | 步长 4 μs，共 200,000 步，观测时域 0.8 s |
+| 发射点到目标球心的距离 | 5、8、13、21、34 μm |
+| 每次估计的粒子数 | MonC 使用 1,000 个分子，A-MLS 使用 250 个初始副本 |
+| 主对照 | 每种方法、场景和距离各 50 批，每批 32 次独立种子对应的估计 |
+| 主对照的 A-MLS 分层 | 均匀 A-MLS 使用 32 个阈值点（`L=31`），自适应 A-MLS 使用 `k=5` |
+| 标准场景参数扫描 | 覆盖 5、13、34 μm。均匀扫描每组 50 × 32 次估计，自适应扫描每组 20 × 32 次。 |
+| 标准场景 CDF | 每种方法和距离使用一批 32 次估计，种子单独归档 |
 
-每批相对 L2 误差均由该批平均估计曲线在完整的 **200,001 点**时间网格上计算；扩展场景的 FEM 样本经线性插值映射到该网格。论文使用 50 批主对照误差的算术平均，主指标为 `S = mean(wall_seconds) × mean(relative_l2)`，相对增益为 `G = 100 × (S_MonC / S_A-MLS − 1)`。参数扫描阴影区间，以及标准场景误差、墙钟时间和 S 的误差棒，使用 95% 百分位 bootstrap 区间；增益面板展示点估计。CDF 图中 MonC 使用合并分子样本的 Wilson 区间，A-MLS 使用 32 次独立估计的 Student-t 区间。
+逐批相对 L2 误差由该批平均曲线与参考值在完整的 **200,001 点**网格上计算。展示曲线保留 1,001 个点。主指标为 `S = mean(wall_seconds) × mean(relative_l2)`，相对增益百分数为 `100 × (S_MonC / S_A-MLS − 1)`。
 
-保存的展示曲线包含 1,001 个时间点。表格直接采用已保存的完整网格误差统计；绘图网格用于展示曲线。十六进制随机种子用于在完整时间网格上重新计算。CSV 中时间单位均为秒，概率与相对误差均无量纲。
+参数扫描，以及标准场景的误差、耗时和 S 图采用 95% 百分位 bootstrap 区间。增益面板展示点估计。CDF 图中 MonC 使用合并分子样本的 Wilson 区间，A-MLS 使用 32 次估计的 Student-t 区间。CSV 时间单位为秒，概率和相对误差均无量纲。
 
-所附墙钟时间使用 Julia 1.11.8，在 Intel Xeon Gold 6430 上以每个工作进程 32 线程测得；MonC 单进程，A-MLS 两进程并发。计时范围为预热后的并行估计批次。新运行的耗时随硬件、Julia 版本、并发数和调度方式变化；重建论文中涉及耗时的表格和图时，使用仓库内所附结果。
+归档耗时测量的是预热后的并行估计批次，使用 Intel Xeon Gold 6430、Julia 1.11.8、每进程 32 线程，MonC 为单进程，A-MLS 为两进程并发。重建稿件性能图时使用随附耗时。重跑耗时取决于硬件、Julia 版本、并发数和调度方式。
 
-## 数值实现
+三种方法共用高斯扩散步进，在时间步端点判定吸收。反射球使用直线步进段与球面的交点，按镜面规则反射剩余位移。这些规则用有限步长近似连续扩散过程。自适应实现会淘汰所选分数处的并列副本，按实际存活比例更新权重，并重放父轨迹随机流以恢复分支检查点。已被目标吸收的副本保留原始命中时刻。
 
-三种方法共用高斯扩散步进。吸收在时间步端点判定；反射球通过直线步进段与球面的交点，将剩余位移按镜面规则反射。这是连续扩散模型的有限步长近似。自适应实现会淘汰所选分数处的全部并列副本、按实际存活比例更新权重，并重放父轨迹随机流以恢复分支检查点，再生成独立后续轨迹。已被目标吸收的副本保留原始命中时刻。
+Julia 内核采用 SI 单位。场景距离、球半径和横向偏移以 R 的倍数给出。历史配置键 `obstacle_offset_x_R` 与 `competitor_offset_x_R` 表示发射点到目标球心距离的比例，`0.5` 对应附加球位于 x=d/2。
 
-Julia 物理配置与内核采用 SI 单位（米、秒、m²/s）。场景距离、球半径及横向偏移以 R 的倍数给出。历史配置键 `obstacle_offset_x_R` 与 `competitor_offset_x_R` 表示发射点到目标球心距离 d 的比例，`0.5` 对应附加球位于 x=d/2。README 中的距离及图中坐标采用微米。
+</details>
+
+## 目录结构
+
+| 路径 | 内容 |
+| --- | --- |
+| [`src/`](src/) | Julia 仿真内核与实验运行程序 |
+| [`config/`](config/) | 物理参数和场景定义 |
+| [`tools/`](tools/) | Python 统计与绘图脚本 |
+| [`outputs/`](outputs/README.zh-CN.md) | 归档数据、参考曲线、统计汇总和 PDF 图 |
+| [`run_simulations.sh`](run_simulations.sh) | 仿真入口 |
+| [`reproduce_figures.sh`](reproduce_figures.sh) | 统计和图表重建入口 |
+
+引用本项目的代码或数据时，请附上[仓库地址](https://github.com/J-F-Sun/A-MLS)与所使用的提交版本。
